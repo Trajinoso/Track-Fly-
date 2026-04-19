@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>SkyTrack Mobile | v2.1</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root {
+            --primary-color: #00ff41;
+            --highlight-color: #fffb00;
+            --bg-color: #050505;
+            --panel-bg: rgba(10, 10, 10, 0.9);
+        }
+
+        body, html { 
+            margin: 0; padding: 0; height: 100%; 
+            background: var(--bg-color); 
+            color: var(--primary-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+        }
+
+        /* Cabecera superior */
+        #header {
+            position: absolute; top: 0; width: 100%;
+            background: var(--panel-bg);
+            border-bottom: 1px solid var(--primary-color);
+            z-index: 1001; padding: 10px;
+            display: flex; justify-content: space-between;
+            box-sizing: border-box; font-size: 0.7rem; font-weight: bold;
+        }
+
+        #map { height: 100vh; width: 100vw; z-index: 1; }
+
+        /* Panel de Configuración (Adaptativo) */
+        #config-panel {
+            position: absolute; top: 45px; right: 10px;
+            z-index: 1001; background: var(--panel-bg);
+            border: 1px solid #444; padding: 12px; border-radius: 8px;
+            width: 200px; font-size: 0.8rem;
+        }
+
+        #config-panel input {
+            background: #222; border: 1px solid var(--primary-color);
+            color: white; padding: 8px; width: 100%; margin: 5px 0;
+            border-radius: 4px; box-sizing: border-box;
+        }
+
+        #config-panel button {
+            background: var(--primary-color); border: none; color: black;
+            padding: 10px; width: 100%; cursor: pointer; font-weight: bold;
+            border-radius: 4px; margin-top: 5px;
+        }
+
+        /* Lista de Vuelos */
+        #radar-list {
+            position: absolute; bottom: 20px; left: 10px;
+            z-index: 1001; background: var(--panel-bg);
+            border: 1px solid var(--primary-color);
+            padding: 12px; border-radius: 8px;
+            width: 280px; max-height: 35vh; overflow-y: auto;
+        }
+
+        .plane-item {
+            border-left: 3px solid var(--primary-color);
+            padding: 8px; margin-bottom: 8px; background: rgba(255,255,255,0.05);
+            font-size: 0.8rem;
+        }
+
+        .plane-item.closest {
+            border-left-color: var(--highlight-color);
+            background: rgba(255, 251, 0, 0.1);
+        }
+
+        .eta-tag { color: var(--highlight-color); font-weight: bold; }
+
+        /* Ajustes para Móvil (Pantallas pequeñas) */
+        @media (max-width: 600px) {
+            #config-panel {
+                width: calc(100% - 20px); left: 10px; top: auto; bottom: 10px;
+                display: flex; flex-direction: row; gap: 5px; align-items: flex-end;
+                padding: 8px;
+            }
+            #config-panel div { flex: 1; }
+            #config-panel label { display: none; }
+            #config-panel input { margin: 0; font-size: 0.7rem; }
+            #config-panel button { padding: 8px; font-size: 0.7rem; width: auto; }
+            
+            #radar-list {
+                width: calc(100% - 20px); left: 10px; bottom: 85px;
+                max-height: 25vh;
+            }
+            #header { padding: 5px 10px; }
+        }
+
+        .plane-icon { font-size: 22px; text-shadow: 0 0 5px black; }
+    </style>
+</head>
+<body>
+
+    <div id="header">
+        <div>SKYTRACK V2.1</div>
+        <div id="clock">00:00:00</div>
+    </div>
+
+    <div id="config-panel">
+        <div>
+            <label>Lat:</label>
+            <input type="number" id="lat-input" step="0.0001">
+        </div>
+        <div>
+            <label>Lon:</label>
+            <input type="number" id="lon-input" step="0.0001">
+        </div>
+        <button onclick="updateLocation()">SET</button>
+    </div>
+
+    <div id="radar-list">
+        <div style="font-weight: bold; margin-bottom: 8px; font-size: 0.7rem; border-bottom: 1px solid">PROXIMIDAD (ETA)</div>
+        <div id="plane-container">Iniciando radar...</div>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        let HOME_LAT = parseFloat(localStorage.getItem('savedLat')) || 36.7354097;
+        let HOME_LON = parseFloat(localStorage.getItem('savedLon')) || -4.6057130;
+        const RANGE = 0.5;
+        let planesMarkers = {};
+        let homeMarker;
+
+        document.getElementById('lat-input').value = HOME_LAT.toFixed(5);
+        document.getElementById('lon-input').value = HOME_LON.toFixed(5);
+
+        const map = L.map('map', { zoomControl: false }).setView([HOME_LAT, HOME_LON], 11);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+        function setHomeMarker() {
+            if (homeMarker) map.removeLayer(homeMarker);
+            homeMarker = L.circleMarker([HOME_LAT, HOME_LON], {
+                radius: 8, color: 'red', weight: 2, fillOpacity: 0.4
+            }).addTo(map);
+        }
+        setHomeMarker();
+
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+            return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+
+        function updateLocation() {
+            HOME_LAT = parseFloat(document.getElementById('lat-input').value);
+            HOME_LON = parseFloat(document.getElementById('lon-input').value);
+            localStorage.setItem('savedLat', HOME_LAT);
+            localStorage.setItem('savedLon', HOME_LON);
+            map.panTo([HOME_LAT, HOME_LON]);
+            setHomeMarker();
+            fetchPlanes();
+        }
+
+        async function fetchPlanes() {
+            try {
+                const res = await fetch(`https://opensky-network.org/api/states/all?lamin=${HOME_LAT-RANGE}&lomin=${HOME_LON-RANGE}&lamax=${HOME_LAT+RANGE}&lomax=${HOME_LON+RANGE}`);
+                const data = await res.json();
+                processData(data.states || []);
+            } catch (e) { console.error("API Error"); }
+        }
+
+        function processData(states) {
+            const container = document.getElementById('plane-container');
+            container.innerHTML = "";
+            const currentIds = new Set();
+            
+            let planesInfo = states.map(p => {
+                const dist = getDistance(HOME_LAT, HOME_LON, p[6], p[5]);
+                const speed = (p[9] || 0) * 3.6;
+                const eta = speed > 50 ? (dist / speed) * 60 : null;
+                return { id: p[0], call: p[1].trim() || 'Vuelo', lat: p[6], lon: p[5], track: p[10], dist, eta, alt: p[7] };
+            }).sort((a, b) => a.dist - b.dist);
+
+            planesInfo.forEach((p, index) => {
+                currentIds.add(p.id);
+                const isClosest = index === 0;
+
+                if (p.lat && p.lon) {
+                    if (planesMarkers[p.id]) {
+                        planesMarkers[p.id].setLatLng([p.lat, p.lon]);
+                        planesMarkers[p.id].getElement().firstChild.style.transform = `rotate(${p.track-45}deg)`;
+                    } else {
+                        const icon = L.divIcon({
+                            className: 'plane-icon',
+                            html: `<div style="color: ${isClosest ? 'var(--highlight-color)' : 'var(--primary-color)'}; transform: rotate(${p.track-45}deg);">✈</div>`,
+                            iconSize: [24, 24]
+                        });
+                        planesMarkers[p.id] = L.marker([p.lat, p.lon], {icon}).addTo(map);
+                    }
+                }
+
+                const item = document.createElement('div');
+                item.className = `plane-item ${isClosest ? 'closest' : ''}`;
+                item.innerHTML = `<strong>${p.call}</strong> · ${p.dist.toFixed(1)}km<br>
+                                  Alt: ${Math.round(p.alt)}m · ${p.eta ? `<span class="eta-tag">${Math.round(p.eta)} min</span>` : '---'}`;
+                container.appendChild(item);
+            });
+
+            Object.keys(planesMarkers).forEach(id => {
+                if (!currentIds.has(id)) { map.removeLayer(planesMarkers[id]); delete planesMarkers[id]; }
+            });
+        }
+
+        setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString(); }, 1000);
+        setInterval(fetchPlanes, 10000);
+        fetchPlanes();
+    </script>
+</body>
+</html>
