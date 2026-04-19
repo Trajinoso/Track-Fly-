@@ -4,147 +4,87 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>SkyTrack Mobile | v2.1</title>
+    <title>SkyTrack Security | v2.3</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root {
-            --primary-color: #00ff41;
-            --highlight-color: #fffb00;
-            --bg-color: #050505;
-            --panel-bg: rgba(10, 10, 10, 0.9);
-        }
-
-        body, html { 
-            margin: 0; padding: 0; height: 100%; 
-            background: var(--bg-color); 
-            color: var(--primary-color);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            overflow: hidden;
-        }
-
-        /* Cabecera superior */
-        #header {
-            position: absolute; top: 0; width: 100%;
-            background: var(--panel-bg);
-            border-bottom: 1px solid var(--primary-color);
-            z-index: 1001; padding: 10px;
-            display: flex; justify-content: space-between;
-            box-sizing: border-box; font-size: 0.7rem; font-weight: bold;
-        }
-
+        :root { --primary-color: #00ff41; --highlight-color: #fffb00; --bg-color: #050505; --panel-bg: rgba(10, 10, 10, 0.9); }
+        body, html { margin: 0; padding: 0; height: 100%; background: var(--bg-color); color: var(--primary-color); font-family: sans-serif; overflow: hidden; }
+        #header { position: absolute; top: 0; width: 100%; background: var(--panel-bg); border-bottom: 1px solid var(--primary-color); z-index: 1001; padding: 8px; display: flex; justify-content: space-between; box-sizing: border-box; font-size: 0.7rem; }
         #map { height: 100vh; width: 100vw; z-index: 1; }
-
-        /* Panel de Configuración (Adaptativo) */
-        #config-panel {
-            position: absolute; top: 45px; right: 10px;
-            z-index: 1001; background: var(--panel-bg);
-            border: 1px solid #444; padding: 12px; border-radius: 8px;
-            width: 200px; font-size: 0.8rem;
-        }
-
-        #config-panel input {
-            background: #222; border: 1px solid var(--primary-color);
-            color: white; padding: 8px; width: 100%; margin: 5px 0;
-            border-radius: 4px; box-sizing: border-box;
-        }
-
-        #config-panel button {
-            background: var(--primary-color); border: none; color: black;
-            padding: 10px; width: 100%; cursor: pointer; font-weight: bold;
-            border-radius: 4px; margin-top: 5px;
-        }
-
-        /* Lista de Vuelos */
-        #radar-list {
-            position: absolute; bottom: 20px; left: 10px;
-            z-index: 1001; background: var(--panel-bg);
-            border: 1px solid var(--primary-color);
-            padding: 12px; border-radius: 8px;
-            width: 280px; max-height: 35vh; overflow-y: auto;
-        }
-
-        .plane-item {
-            border-left: 3px solid var(--primary-color);
-            padding: 8px; margin-bottom: 8px; background: rgba(255,255,255,0.05);
-            font-size: 0.8rem;
-        }
-
-        .plane-item.closest {
-            border-left-color: var(--highlight-color);
-            background: rgba(255, 251, 0, 0.1);
-        }
-
+        #config-panel { position: absolute; top: 45px; right: 10px; z-index: 1001; background: var(--panel-bg); border: 1px solid #444; padding: 12px; border-radius: 8px; width: 200px; font-size: 0.8rem; }
+        #config-panel input { background: #222; border: 1px solid var(--primary-color); color: white; padding: 8px; width: 100%; margin: 5px 0; border-radius: 4px; box-sizing: border-box; }
+        #config-panel button { background: var(--primary-color); border: none; color: black; padding: 10px; width: 100%; cursor: pointer; font-weight: bold; border-radius: 4px; margin-top: 5px; }
+        #radar-list { position: absolute; bottom: 20px; left: 10px; z-index: 1001; background: var(--panel-bg); border: 1px solid var(--primary-color); padding: 12px; border-radius: 8px; width: 280px; max-height: 35vh; overflow-y: auto; }
+        .plane-item { border-left: 3px solid var(--primary-color); padding: 8px; margin-bottom: 8px; background: rgba(255,255,255,0.05); font-size: 0.8rem; }
+        .plane-item.closest { border-left-color: var(--highlight-color); background: rgba(255, 251, 0, 0.1); }
         .eta-tag { color: var(--highlight-color); font-weight: bold; }
-
-        /* Ajustes para Móvil (Pantallas pequeñas) */
         @media (max-width: 600px) {
-            #config-panel {
-                width: calc(100% - 20px); left: 10px; top: auto; bottom: 10px;
-                display: flex; flex-direction: row; gap: 5px; align-items: flex-end;
-                padding: 8px;
-            }
-            #config-panel div { flex: 1; }
-            #config-panel label { display: none; }
-            #config-panel input { margin: 0; font-size: 0.7rem; }
-            #config-panel button { padding: 8px; font-size: 0.7rem; width: auto; }
-            
-            #radar-list {
-                width: calc(100% - 20px); left: 10px; bottom: 85px;
-                max-height: 25vh;
-            }
-            #header { padding: 5px 10px; }
+            #config-panel { width: calc(100% - 20px); left: 10px; top: auto; bottom: 10px; display: flex; gap: 5px; align-items: flex-end; }
+            #radar-list { width: calc(100% - 20px); left: 10px; bottom: 85px; }
         }
-
-        .plane-icon { font-size: 22px; text-shadow: 0 0 5px black; }
+        .plane-icon { font-size: 22px; }
+        #auth-status { font-size: 0.6rem; color: #888; }
     </style>
 </head>
 <body>
 
     <div id="header">
-        <div>SKYTRACK V2.1</div>
+        <div>SKYTRACK V2.3 <span id="auth-status"></span></div>
         <div id="clock">00:00:00</div>
     </div>
 
     <div id="config-panel">
-        <div>
-            <label>Lat:</label>
-            <input type="number" id="lat-input" step="0.0001">
-        </div>
-        <div>
-            <label>Lon:</label>
-            <input type="number" id="lon-input" step="0.0001">
-        </div>
-        <button onclick="updateLocation()">SET</button>
+        <input type="number" id="lat-input" step="0.0001" placeholder="Latitud">
+        <input type="number" id="lon-input" step="0.0001" placeholder="Longitud">
+        <button onclick="updateLocation()">ACTUALIZAR</button>
+        <button onclick="resetAuth()" style="background:#444; color:white; font-size:0.6rem; margin-top:10px">CERRAR SESIÓN</button>
     </div>
 
     <div id="radar-list">
-        <div style="font-weight: bold; margin-bottom: 8px; font-size: 0.7rem; border-bottom: 1px solid">PROXIMIDAD (ETA)</div>
-        <div id="plane-container">Iniciando radar...</div>
+        <div id="plane-container">Iniciando sistema...</div>
     </div>
 
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        let HOME_LAT = parseFloat(localStorage.getItem('savedLat')) || 36.7354097;
-        let HOME_LON = parseFloat(localStorage.getItem('savedLon')) || -4.6057130;
+        // --- GESTIÓN DE PRIVACIDAD (PUNTO 1) ---
+        let OS_USER = localStorage.getItem('os_user');
+        let OS_PASS = localStorage.getItem('os_pass');
+
+        if (!OS_USER || !OS_PASS) {
+            OS_USER = prompt("Introduce tu usuario de OpenSky:");
+            OS_PASS = prompt("Introduce tu contraseña de OpenSky:");
+            if (OS_USER && OS_PASS) {
+                localStorage.setItem('os_user', OS_USER);
+                localStorage.setItem('os_pass', OS_PASS);
+            }
+        }
+
+        function resetAuth() {
+            localStorage.removeItem('os_user');
+            localStorage.removeItem('os_pass');
+            location.reload();
+        }
+
+        // --- CONFIGURACIÓN RADAR ---
+        let HOME_LAT = parseFloat(localStorage.getItem('savedLat')) || 36.73541;
+        let HOME_LON = parseFloat(localStorage.getItem('savedLon')) || -4.60571;
         const RANGE = 0.5;
         let planesMarkers = {};
         let homeMarker;
 
-        document.getElementById('lat-input').value = HOME_LAT.toFixed(5);
-        document.getElementById('lon-input').value = HOME_LON.toFixed(5);
+        document.getElementById('lat-input').value = HOME_LAT;
+        document.getElementById('lon-input').value = HOME_LON;
+        document.getElementById('auth-status').innerText = OS_USER ? `| SESIÓN: ${OS_USER}` : '| MODO ANÓNIMO';
 
         const map = L.map('map', { zoomControl: false }).setView([HOME_LAT, HOME_LON], 11);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
         function setHomeMarker() {
             if (homeMarker) map.removeLayer(homeMarker);
-            homeMarker = L.circleMarker([HOME_LAT, HOME_LON], {
-                radius: 8, color: 'red', weight: 2, fillOpacity: 0.4
-            }).addTo(map);
+            homeMarker = L.circleMarker([HOME_LAT, HOME_LON], { radius: 8, color: 'red' }).addTo(map);
         }
         setHomeMarker();
 
@@ -156,27 +96,30 @@
             return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
-        function updateLocation() {
-            HOME_LAT = parseFloat(document.getElementById('lat-input').value);
-            HOME_LON = parseFloat(document.getElementById('lon-input').value);
-            localStorage.setItem('savedLat', HOME_LAT);
-            localStorage.setItem('savedLon', HOME_LON);
-            map.panTo([HOME_LAT, HOME_LON]);
-            setHomeMarker();
-            fetchPlanes();
-        }
-
         async function fetchPlanes() {
+            const url = `https://opensky-network.org/api/states/all?lamin=${HOME_LAT-RANGE}&lomin=${HOME_LON-RANGE}&lamax=${HOME_LAT+RANGE}&lomax=${HOME_LON+RANGE}`;
+            const headers = {};
+            
+            if (OS_USER && OS_PASS) {
+                headers['Authorization'] = 'Basic ' + btoa(OS_USER + ':' + OS_PASS);
+            }
+
             try {
-                const res = await fetch(`https://opensky-network.org/api/states/all?lamin=${HOME_LAT-RANGE}&lomin=${HOME_LON-RANGE}&lamax=${HOME_LAT+RANGE}&lomax=${HOME_LON+RANGE}`);
+                const res = await fetch(url, { headers });
+                if (res.status === 429) {
+                    document.getElementById('plane-container').innerHTML = "⚠️ Límite API. Espera 2 min.";
+                    return;
+                }
                 const data = await res.json();
                 processData(data.states || []);
-            } catch (e) { console.error("API Error"); }
+            } catch (e) {
+                document.getElementById('plane-container').innerHTML = "❌ Error de conexión.";
+            }
         }
 
         function processData(states) {
             const container = document.getElementById('plane-container');
-            container.innerHTML = "";
+            container.innerHTML = states.length === 0 ? "📡 Sin tráficos en zona" : "";
             const currentIds = new Set();
             
             let planesInfo = states.map(p => {
@@ -216,9 +159,20 @@
             });
         }
 
+        function updateLocation() {
+            HOME_LAT = parseFloat(document.getElementById('lat-input').value);
+            HOME_LON = parseFloat(document.getElementById('lon-input').value);
+            localStorage.setItem('savedLat', HOME_LAT);
+            localStorage.setItem('savedLon', HOME_LON);
+            map.panTo([HOME_LAT, HOME_LON]);
+            setHomeMarker();
+            fetchPlanes();
+        }
+
         setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString(); }, 1000);
-        setInterval(fetchPlanes, 10000);
+        setInterval(fetchPlanes, 15000);
         fetchPlanes();
     </script>
 </body>
 </html>
+
